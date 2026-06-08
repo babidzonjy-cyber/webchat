@@ -28,4 +28,5 @@ CREATE TABLE webchat.messages(
 
 CREATE INDEX idx_rooms_created_by ON webchat.rooms(created_by);
 CREATE INDEX idx_messages_room_id ON webchat.messages(room_id);
+CREATE INDEX idx_messages_user_id ON webchat.messages(user_id);
 CREATE INDEX idx_messages_created_at ON webchat.messages(created_at);
