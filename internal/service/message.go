@@ -2,11 +2,8 @@ package service
 
 import (
 	"context"
-	"errors"
-	"sort"
-	"sync"
-	"time"
 	"web-chat/internal/domain"
+	"web-chat/internal/repository"
 )
 
 type MessageService interface {
@@ -18,100 +15,53 @@ type MessageService interface {
 }
 
 type messageMemory struct {
-	message map[int]*domain.Message
-	nextID  int
-
-	rwmtx sync.RWMutex
+	repo repository.MessageRepository
 }
 
-func NewMessageMemory() *messageMemory {
+func NewMessageMemory(repo repository.MessageRepository) *messageMemory {
 	return &messageMemory{
-		message: make(map[int]*domain.Message),
-		nextID:  1,
+		repo: repo,
 	}
 }
 
 func (m *messageMemory) Create(ctx context.Context, msg *domain.Message) error {
-	m.rwmtx.Lock()
-	defer m.rwmtx.Unlock()
-
-	msg.ID = m.nextID
-	m.nextID++
-	msg.CreatedAt = time.Now()
-	m.message[msg.ID] = msg
+	if err := m.repo.Create(ctx, msg); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (m *messageMemory) GetByID(ctx context.Context, id int) (*domain.Message, error) {
-	m.rwmtx.RLock()
-	defer m.rwmtx.RUnlock()
-
-	if val, exists := m.message[id]; exists {
-		return val, nil
+	msg, err := m.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("there is no message with that id")
+	return msg, nil
 }
 
 func (m *messageMemory) GetByRoomID(ctx context.Context, roomID int, limit, offset int) ([]*domain.Message, error) {
-	m.rwmtx.RLock()
-	defer m.rwmtx.RUnlock()
-
-	var allMessages []*domain.Message
-	for _, msg := range m.message {
-		if msg.RoomID == roomID {
-			allMessages = append(allMessages, msg)
-		}
+	msgs, err := m.repo.GetByRoomID(ctx, roomID, limit, offset)
+	if err != nil {
+		return nil, err
 	}
 
-	sort.Slice(allMessages, func(i, j int) bool {
-		return allMessages[i].CreatedAt.Before(allMessages[j].CreatedAt)
-	})
-
-	if offset >= len(allMessages) {
-		return []*domain.Message{}, nil
-	}
-
-	start := offset
-	end := start + limit
-	if end > len(allMessages) {
-		end = len(allMessages)
-	}
-
-	return allMessages[start:end], nil
+	return msgs, err
 }
 
 func (m *messageMemory) Delete(ctx context.Context, msgID, userID int) error {
-	m.rwmtx.Lock()
-	defer m.rwmtx.Unlock()
-
-	msg, exists := m.message[msgID]
-	if !exists {
-		return errors.New("message not found")
-	}
-	if msg.UserID != userID {
-		return errors.New("you are not the author of this message")
+	if err := m.repo.Delete(ctx, msgID, userID); err != nil {
+		return err
 	}
 
-	delete(m.message, msgID)
 	return nil
 }
 
 func (m *messageMemory) DeleteByRoom(ctx context.Context, roomID, userID int) error {
-	m.rwmtx.Lock()
-	defer m.rwmtx.Unlock()
-
-	deleted := false
-	for key, msg := range m.message {
-		if msg.RoomID == roomID {
-			delete(m.message, key)
-			deleted = true
-		}
+	if err := m.repo.DeleteByRoom(ctx, roomID); err != nil {
+		return err
 	}
 
-	if !deleted {
-		return errors.New("no messages found in this room")
-	}
 	return nil
 }

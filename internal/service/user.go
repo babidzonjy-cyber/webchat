@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
-	"sync"
-	"time"
 	"web-chat/internal/domain"
+	"web-chat/internal/repository"
 )
 
 type UserService interface {
@@ -17,60 +15,44 @@ type UserService interface {
 }
 
 type userMemory struct {
-	users  map[int]*domain.User
-	nextID int
-	rwmtx  sync.RWMutex
+	repo repository.UserRepository
 }
 
-func NewUserMemory() *userMemory {
+func NewUserMemory(repo repository.UserRepository) *userMemory {
 	return &userMemory{
-		users:  make(map[int]*domain.User),
-		nextID: 1,
+		repo: repo,
 	}
 }
 
 func (u *userMemory) Create(ctx context.Context, user *domain.User) error {
-	u.rwmtx.Lock()
-	defer u.rwmtx.Unlock()
-
-	user.ID = u.nextID
-	u.nextID++
-	user.CreatedAt = time.Now()
-	u.users[user.ID] = user
+	if err := u.repo.Create(ctx, user); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (u *userMemory) GetByID(ctx context.Context, id int) (*domain.User, error) {
-	u.rwmtx.RLock()
-	defer u.rwmtx.RUnlock()
-
-	if val, exists := u.users[id]; exists {
-		return val, nil
+	user, err := u.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("there is no user with that id")
+
+	return user, err
 }
 
 func (u *userMemory) Update(ctx context.Context, user *domain.User) error {
-	u.rwmtx.Lock()
-	defer u.rwmtx.Unlock()
-
-	if _, exists := u.users[user.ID]; !exists {
-		return fmt.Errorf("user %d not found", user.ID)
+	if err := u.repo.Update(ctx, user); err != nil {
+		return err
 	}
 
-	u.users[user.ID] = user
 	return nil
 }
 
 func (u *userMemory) Delete(ctx context.Context, id int) error {
-	u.rwmtx.Lock()
-	defer u.rwmtx.Unlock()
-
-	if _, exists := u.users[id]; exists {
-		delete(u.users, id)
-		return nil
+	if err := u.repo.Delete(ctx, id); err != nil {
+		return errors.New("there is no user with that id")
 	}
 
-	return errors.New("there is no user with that id")
+	return nil
 }

@@ -81,6 +81,11 @@ func (h *RoomHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	room.ID = id
 
 	if err := h.svc.Update(r.Context(), &room); err != nil {

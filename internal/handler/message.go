@@ -122,7 +122,7 @@ func (m *MessageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 func (m *MessageHandler) DeleteByRoom(w http.ResponseWriter, r *http.Request) {
 	userIDStr := r.URL.Query().Get("user_id")
-	roomIDStr := r.PathValue("id")
+	roomIDStr := r.PathValue("room_id")
 
 	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {

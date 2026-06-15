@@ -95,16 +95,21 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 			continue
 		}
 
+		username := "unknown"
 		user, err := userSvc.GetByID(context.Background(), client.UserID)
 		if err != nil {
 			slog.Warn("failed to get user for broadcast", "user_id", client.UserID)
+		}
+
+		if user != nil {
+			username = user.FullName
 		}
 
 		response := map[string]any{
 			"type":       "message",
 			"id":         msg.ID,
 			"user_id":    client.UserID,
-			"user":       user,
+			"user":       username,
 			"text":       msg.Text,
 			"created_at": msg.CreatedAt,
 		}

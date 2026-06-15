@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"web-chat/internal/hub"
 	"web-chat/internal/logger"
 	"web-chat/internal/middleware"
+	"web-chat/internal/repository"
 	"web-chat/internal/service"
 )
 
@@ -21,13 +24,25 @@ func main() {
 	log := logger.NewLogger(cfg)
 	slog.SetDefault(log)
 
-	userService := service.NewUserMemory()
+	db := fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
+
+	pool, err := repository.NewPool(context.Background(), db)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	userRepo := repository.NewUserPG(pool)
+	roomRepo := repository.NewRoomPG(pool)
+	msgRepo := repository.NewMessagePG(pool)
+
+	userService := service.NewUserMemory(userRepo)
+	roomService := service.NewRoomMemory(roomRepo)
+	messageService := service.NewMessageMemory(msgRepo)
+
 	userHandler := handler.NewUserHandler(userService)
-
-	roomService := service.NewRoomMemory()
 	roomHandler := handler.NewRoomHandler(roomService)
-
-	messageService := service.NewMessageMemory()
 	messageHandler := handler.NewMessageHandler(messageService)
 
 	chatHub := hub.NewHub()
@@ -37,27 +52,23 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// users
 	mux.HandleFunc("POST /users", userHandler.Create)
 	mux.HandleFunc("GET /users/{id}", userHandler.GetByID)
 	mux.HandleFunc("PUT /users/{id}", userHandler.Update)
 	mux.HandleFunc("DELETE /users/{id}", userHandler.Delete)
 
-	// rooms
 	mux.HandleFunc("POST /rooms", roomHandler.Create)
 	mux.HandleFunc("GET /rooms/{id}", roomHandler.GetByID)
 	mux.HandleFunc("GET /rooms", roomHandler.GetAll)
 	mux.HandleFunc("PUT /rooms/{id}", roomHandler.Update)
 	mux.HandleFunc("DELETE /rooms/{id}", roomHandler.Delete)
 
-	// messages
 	mux.HandleFunc("POST /rooms/{room_id}/messages", messageHandler.Create)
 	mux.HandleFunc("GET /messages/{id}", messageHandler.GetByID)
 	mux.HandleFunc("GET /rooms/{room_id}/messages", messageHandler.GetByRoomID)
 	mux.HandleFunc("DELETE /messages/{id}", messageHandler.Delete)
 	mux.HandleFunc("DELETE /rooms/{room_id}/messages", messageHandler.DeleteByRoom)
 
-	// ws
 	mux.HandleFunc("GET /ws/chat/{room_id}", wsHandler)
 
 	slog.Info("server starting", "port", 8080)

@@ -2,11 +2,8 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"sync"
-	"time"
 	"web-chat/internal/domain"
+	"web-chat/internal/repository"
 )
 
 type RoomService interface {
@@ -18,78 +15,54 @@ type RoomService interface {
 }
 
 type roomMemory struct {
-	rooms  map[int]*domain.Room
-	nextID int
-	rwmtx  sync.RWMutex
+	repo repository.RoomRepository
 }
 
-func NewRoomMemory() *roomMemory {
+func NewRoomMemory(repo repository.RoomRepository) *roomMemory {
 	return &roomMemory{
-		rooms:  make(map[int]*domain.Room),
-		nextID: 1,
+		repo: repo,
 	}
 }
 
 func (r *roomMemory) Create(ctx context.Context, room *domain.Room) error {
-	r.rwmtx.Lock()
-	defer r.rwmtx.Unlock()
-
-	room.ID = r.nextID
-	r.nextID++
-	room.CreatedAt = time.Now()
-	r.rooms[room.ID] = room
+	if err := r.repo.Create(ctx, room); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 func (r *roomMemory) GetByID(ctx context.Context, id int) (*domain.Room, error) {
-	r.rwmtx.RLock()
-	defer r.rwmtx.RUnlock()
+	room, err := r.repo.GetByID(ctx, id)
 
-	if val, exists := r.rooms[id]; exists {
-		return val, nil
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("there is no room with that id")
+	return room, err
 }
 
 func (r *roomMemory) GetAll(ctx context.Context) ([]*domain.Room, error) {
-	r.rwmtx.RLock()
-	defer r.rwmtx.RUnlock()
-
-	roomsSlice := make([]*domain.Room, 0, len(r.rooms))
-
-	if len(r.rooms) == 0 {
-		return roomsSlice, nil
+	rooms, err := r.repo.GetAll(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	for _, v := range r.rooms {
-		roomsSlice = append(roomsSlice, v)
-	}
-
-	return roomsSlice, nil
+	return rooms, nil
 }
 
 func (r *roomMemory) Update(ctx context.Context, room *domain.Room) error {
-	r.rwmtx.Lock()
-	defer r.rwmtx.Unlock()
-
-	if _, exists := r.rooms[room.ID]; !exists {
-		return fmt.Errorf("room %d not found", room.ID)
+	if err := r.repo.Update(ctx, room); err != nil {
+		return err
 	}
 
-	r.rooms[room.ID] = room
 	return nil
 }
 
 func (r *roomMemory) Delete(ctx context.Context, id int) error {
-	r.rwmtx.Lock()
-	defer r.rwmtx.Unlock()
-
-	if _, exists := r.rooms[id]; exists {
-		delete(r.rooms, id)
-		return nil
+	if err := r.repo.Delete(ctx, id); err != nil {
+		return err
 	}
 
-	return errors.New("there is no room with that id")
+	return nil
 }
