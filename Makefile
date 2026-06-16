@@ -1,8 +1,6 @@
 include .env
 export
 
-export PROJECT_ROOT=$(shell pwd)
-
 access-rights:
 	sudo chmod -R 777 ./out/pgdata/18/docker
 	sudo chmod -R 777 ./internal/migrations
