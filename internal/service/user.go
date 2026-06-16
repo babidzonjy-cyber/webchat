@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"web-chat/internal/apperrors"
 	"web-chat/internal/domain"
 	"web-chat/internal/repository"
 )
@@ -50,8 +52,12 @@ func (u *userMemory) Update(ctx context.Context, user *domain.User) error {
 }
 
 func (u *userMemory) Delete(ctx context.Context, id int) error {
-	if err := u.repo.Delete(ctx, id); err != nil {
-		return errors.New("there is no user with that id")
+	err := u.repo.Delete(ctx, id)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return apperrors.ErrNotFound
+		}
+		return fmt.Errorf("service.Delete user %d: %w", id, err)
 	}
 
 	return nil

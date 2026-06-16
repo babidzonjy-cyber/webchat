@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"web-chat/internal/domain"
+	"web-chat/internal/dto"
 	"web-chat/internal/service"
 )
 
@@ -27,14 +28,14 @@ func (h *RoomHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Create(r.Context(), &room); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	json.NewEncoder(w).Encode(room)
+	json.NewEncoder(w).Encode(roomToResponse(&room))
 }
 
 func (h *RoomHandler) GetByID(w http.ResponseWriter, r *http.Request) {
@@ -48,27 +49,27 @@ func (h *RoomHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	room, err := h.svc.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(room)
+	json.NewEncoder(w).Encode(roomToResponse(room))
 }
 
 func (h *RoomHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	rooms, err := h.svc.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(rooms)
+	json.NewEncoder(w).Encode(roomsToResponse(rooms))
 }
 
 func (h *RoomHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -82,21 +83,21 @@ func (h *RoomHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	room.ID = id
 
 	if err := h.svc.Update(r.Context(), &room); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(room)
+	json.NewEncoder(w).Encode(roomToResponse(&room))
 }
 
 func (h *RoomHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -109,10 +110,27 @@ func (h *RoomHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Delete(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func roomToResponse(r *domain.Room) dto.RoomDTO {
+	return dto.RoomDTO{
+		ID:        r.ID,
+		Name:      r.Name,
+		CreatedBy: r.CreatedBy,
+		CreatedAt: r.CreatedAt,
+	}
+}
+
+func roomsToResponse(rooms []*domain.Room) []dto.RoomDTO {
+	out := make([]dto.RoomDTO, 0, len(rooms))
+	for _, r := range rooms {
+		out = append(out, roomToResponse(r))
+	}
+	return out
 }

@@ -1,8 +1,6 @@
 package hub
 
 import (
-	"sync"
-
 	"github.com/gorilla/websocket"
 )
 
@@ -13,13 +11,30 @@ type Client struct {
 	Send   chan []byte
 }
 
-type Hub struct {
-	Clients    map[*Client]bool
-	Broadcast  chan BroadcastMsg
-	Register   chan *Client
-	Unregister chan *Client
+type OnlineCountRequest struct {
+	RoomID int
+	Result chan int
+}
 
-	mtx sync.RWMutex
+type RoomClientsRequest struct {
+	RoomID int
+	Result chan []int
+}
+
+type IsUserOnlineRequest struct {
+	UserID int
+	RoomID int
+	Result chan bool
+}
+
+type Hub struct {
+	Clients          map[*Client]bool
+	Broadcast        chan BroadcastMsg
+	Register         chan *Client
+	Unregister       chan *Client
+	GetCount         chan OnlineCountRequest
+	GetClientsInRoom chan RoomClientsRequest
+	CheckUserOnline  chan IsUserOnlineRequest
 }
 
 type BroadcastMsg struct {
@@ -29,10 +44,13 @@ type BroadcastMsg struct {
 
 func NewHub() *Hub {
 	return &Hub{
-		Clients:    make(map[*Client]bool),
-		Broadcast:  make(chan BroadcastMsg, 256),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
+		Clients:          make(map[*Client]bool),
+		Broadcast:        make(chan BroadcastMsg, 256),
+		Register:         make(chan *Client),
+		Unregister:       make(chan *Client),
+		GetCount:         make(chan OnlineCountRequest),
+		GetClientsInRoom: make(chan RoomClientsRequest),
+		CheckUserOnline:  make(chan IsUserOnlineRequest),
 	}
 }
 
@@ -57,20 +75,59 @@ func (h *Hub) Run() {
 					}
 				}
 			}
+		case req := <-h.GetCount:
+			count := 0
+			for client := range h.Clients {
+				if client.RoomID == req.RoomID {
+					count++
+				}
+			}
+			req.Result <- count
+		case req := <-h.GetClientsInRoom:
+			clientsID := make([]int, 0)
+			for client := range h.Clients {
+				if client.RoomID == req.RoomID {
+					clientsID = append(clientsID, client.UserID)
+				}
+			}
+			req.Result <- clientsID
+		case req := <-h.CheckUserOnline:
+			online := false
+			for client := range h.Clients {
+				if client.UserID == req.UserID && client.RoomID == req.RoomID {
+					online = true
+					break
+				}
+			}
+			req.Result <- online
 		}
 	}
 }
 
 func (h *Hub) GetOnlineCount(roomID int) int {
-	h.mtx.RLock()
-	defer h.mtx.RUnlock()
-
-	count := 0
-	for client := range h.Clients {
-		if client.RoomID == roomID {
-			count++
-		}
+	req := OnlineCountRequest{
+		RoomID: roomID,
+		Result: make(chan int),
 	}
+	h.GetCount <- req
+	return <-req.Result
+}
 
-	return count
+func (h *Hub) CheckOnline(userID, roomID int) bool {
+	req := IsUserOnlineRequest{
+		UserID: userID,
+		RoomID: roomID,
+		Result: make(chan bool),
+	}
+	h.CheckUserOnline <- req
+	return <-req.Result
+}
+
+func (h *Hub) GetUsersInRoom(roomID int) []int {
+	req := RoomClientsRequest{
+		RoomID: roomID,
+		Result: make(chan []int),
+	}
+	h.GetClientsInRoom <- req
+	return <-req.Result
 }

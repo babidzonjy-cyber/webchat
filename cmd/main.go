@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 	ws "web-chat/internal/delivery/websocket"
 	"web-chat/internal/handler"
 	"web-chat/internal/hub"
@@ -39,7 +42,7 @@ func main() {
 
 	userService := service.NewUserMemory(userRepo)
 	roomService := service.NewRoomMemory(roomRepo)
-	messageService := service.NewMessageMemory(msgRepo)
+	messageService := service.NewMessageMemory(msgRepo, roomRepo)
 
 	userHandler := handler.NewUserHandler(userService)
 	roomHandler := handler.NewRoomHandler(roomService)
@@ -71,11 +74,30 @@ func main() {
 
 	mux.HandleFunc("GET /ws/chat/{room_id}", wsHandler)
 
-	slog.Info("server starting", "port", 8080)
-
 	muxWithLogging := middleware.LoggingMiddleware(mux)
-	if err := http.ListenAndServe(":8080", muxWithLogging); err != nil {
-		slog.Error("server failed", "error", err)
+
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: muxWithLogging,
 	}
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	go func() {
+		slog.Info("server starting", "port", 8080)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server failed", "error", err)
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("shutting down...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	srv.Shutdown(shutdownCtx)
+	pool.Close()
+	slog.Info("server stopped")
 }

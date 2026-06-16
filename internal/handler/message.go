@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"web-chat/internal/domain"
+	"web-chat/internal/dto"
 	"web-chat/internal/service"
 )
 
@@ -27,14 +28,14 @@ func (m *MessageHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := m.svc.Create(r.Context(), &message); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	json.NewEncoder(w).Encode(message)
+	json.NewEncoder(w).Encode(messageToResponse(&message))
 }
 
 func (m *MessageHandler) GetByID(w http.ResponseWriter, r *http.Request) {
@@ -48,14 +49,14 @@ func (m *MessageHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := m.svc.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(msg)
+	json.NewEncoder(w).Encode(messageToResponse(msg))
 }
 
 func (m *MessageHandler) GetByRoomID(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +66,7 @@ func (m *MessageHandler) GetByRoomID(w http.ResponseWriter, r *http.Request) {
 
 	roomID, err := strconv.Atoi(roomIDStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid room_id", http.StatusBadRequest)
 		return
 	}
 
@@ -85,14 +86,14 @@ func (m *MessageHandler) GetByRoomID(w http.ResponseWriter, r *http.Request) {
 
 	msgs, err := m.svc.GetByRoomID(r.Context(), roomID, limit, offset)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(msgs)
+	json.NewEncoder(w).Encode(messagesToResponse(msgs))
 }
 
 func (m *MessageHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -101,18 +102,18 @@ func (m *MessageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
 
 	if err := m.svc.Delete(r.Context(), id, userID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
@@ -126,21 +127,39 @@ func (m *MessageHandler) DeleteByRoom(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid user_id", http.StatusBadRequest)
 		return
 	}
 
 	roomID, err := strconv.Atoi(roomIDStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid room_id", http.StatusBadRequest)
 		return
 	}
 
 	if err := m.svc.DeleteByRoom(r.Context(), roomID, userID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func messageToResponse(m *domain.Message) dto.MessageDTO {
+	return dto.MessageDTO{
+		ID:        m.ID,
+		Text:      m.Text,
+		RoomID:    m.RoomID,
+		UserID:    m.UserID,
+		CreatedAt: m.CreatedAt,
+	}
+}
+
+func messagesToResponse(messages []*domain.Message) []dto.MessageDTO {
+	out := make([]dto.MessageDTO, 0, len(messages))
+	for _, m := range messages {
+		out = append(out, messageToResponse(m))
+	}
+	return out
 }

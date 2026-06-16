@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"web-chat/internal/apperrors"
 	"web-chat/internal/domain"
 	"web-chat/internal/repository"
 )
@@ -15,12 +16,14 @@ type MessageService interface {
 }
 
 type messageMemory struct {
-	repo repository.MessageRepository
+	repo     repository.MessageRepository
+	roomRepo repository.RoomRepository
 }
 
-func NewMessageMemory(repo repository.MessageRepository) *messageMemory {
+func NewMessageMemory(repo repository.MessageRepository, roomRepo repository.RoomRepository) *messageMemory {
 	return &messageMemory{
-		repo: repo,
+		repo:     repo,
+		roomRepo: roomRepo,
 	}
 }
 
@@ -59,9 +62,12 @@ func (m *messageMemory) Delete(ctx context.Context, msgID, userID int) error {
 }
 
 func (m *messageMemory) DeleteByRoom(ctx context.Context, roomID, userID int) error {
-	if err := m.repo.DeleteByRoom(ctx, roomID); err != nil {
-		return err
+	room, err := m.roomRepo.GetByID(ctx, roomID)
+	if err != nil {
+		return apperrors.ErrNotFound
 	}
-
-	return nil
+	if room.CreatedBy != userID {
+		return apperrors.ErrForbidden
+	}
+	return m.repo.DeleteByRoom(ctx, roomID)
 }

@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"web-chat/internal/apperrors"
 	"web-chat/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,9 +77,15 @@ func (m *messagePG) GetByRoomID(ctx context.Context, roomID, limit, offset int) 
 
 func (m *messagePG) Delete(ctx context.Context, msgID, userID int) error {
 	query := `DELETE FROM webchat.messages WHERE id = $1 and user_id = $2`
-	_, err := m.pool.Exec(ctx, query, msgID, userID)
+	tag, err := m.pool.Exec(ctx, query, msgID, userID)
+	if err != nil {
+		return fmt.Errorf("repo.Delete, msgId %d, userId %d: %w", msgID, userID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperrors.ErrNotFound
+	}
 
-	return err
+	return nil
 }
 
 func (m *messagePG) DeleteByRoom(ctx context.Context, roomID int) error {

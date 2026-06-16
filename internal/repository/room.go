@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"web-chat/internal/apperrors"
 	"web-chat/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,7 +81,14 @@ func (r *roomPG) Update(ctx context.Context, room *domain.Room) error {
 
 func (r *roomPG) Delete(ctx context.Context, id int) error {
 	query := `DELETE FROM webchat.rooms WHERE id = $1`
-	_, err := r.pool.Exec(ctx, query, id)
+	tag, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("repo.Delete, room %d: %w", id, err)
+	}
 
-	return err
+	if tag.RowsAffected() == 0 {
+		return apperrors.ErrNotFound
+	}
+
+	return nil
 }
