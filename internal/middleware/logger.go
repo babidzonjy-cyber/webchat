@@ -39,11 +39,28 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rw, r)
 
-		slog.Info("request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rw.statusCode,
-			"duration", time.Since(start),
-		)
+		switch {
+		case rw.statusCode >= 500:
+			slog.Error("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.statusCode,
+				"duration", time.Since(start),
+			)
+		case rw.statusCode >= 400:
+			slog.Warn("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.statusCode,
+				"duration", time.Since(start),
+			)
+		default:
+			slog.Info("request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.statusCode,
+				"duration", time.Since(start),
+			)
+		}
 	})
 }

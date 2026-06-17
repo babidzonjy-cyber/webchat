@@ -28,7 +28,7 @@ func NewUserMemory(repo repository.UserRepository) *userMemory {
 
 func (u *userMemory) Create(ctx context.Context, user *domain.User) error {
 	if err := u.repo.Create(ctx, user); err != nil {
-		return err
+		return fmt.Errorf("service.Create user: %d, error: %w", user.ID, err)
 	}
 
 	return nil
@@ -37,15 +37,15 @@ func (u *userMemory) Create(ctx context.Context, user *domain.User) error {
 func (u *userMemory) GetByID(ctx context.Context, id int) (*domain.User, error) {
 	user, err := u.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("service.GetById %d: %w", id, err)
 	}
 
-	return user, err
+	return user, nil
 }
 
 func (u *userMemory) Update(ctx context.Context, user *domain.User) error {
 	if err := u.repo.Update(ctx, user); err != nil {
-		return err
+		return fmt.Errorf("service.Update user: %d, error: %w", user.ID, err)
 	}
 
 	return nil
