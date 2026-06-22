@@ -2,7 +2,7 @@ CREATE SCHEMA IF NOT EXISTS webchat;
 
 CREATE TABLE webchat.users(
     id SERIAL PRIMARY KEY,
-    full_name VARCHAR(100) NOT NULL CHECK (char_length(full_name) >=3),
+    full_name VARCHAR(100) NOT NULL CHECK (char_length(full_name) >= 1),
     email VARCHAR(100) NOT NULL UNIQUE
     CHECK (char_length(email) BETWEEN 7 AND 100
     AND

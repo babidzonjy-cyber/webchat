@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
+	"web-chat/internal/auth"
 	"web-chat/internal/domain"
 	"web-chat/internal/hub"
 	"web-chat/internal/service"
+	"web-chat/internal/worker"
 
 	"github.com/gorilla/websocket"
 )
@@ -19,7 +22,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func ServeWS(h *hub.Hub, msgSvc service.MessageService, userSvc service.UserService) http.HandlerFunc {
+func ServeWS(h *hub.Hub, msgSvc service.MessageService, userSvc service.UserService, pool *worker.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -28,18 +31,16 @@ func ServeWS(h *hub.Hub, msgSvc service.MessageService, userSvc service.UserServ
 		}
 
 		roomIDStr := r.PathValue("room_id")
-		userIDStr := r.URL.Query().Get("user_id")
+		userID := auth.UserIDFromContext(r.Context())
 
-		roomID, err := strconv.Atoi(roomIDStr)
-		if err != nil {
-			slog.Error("invalid room_id", "value", roomIDStr)
+		if userID == 0 {
 			conn.Close()
 			return
 		}
 
-		userID, err := strconv.Atoi(userIDStr)
+		roomID, err := strconv.Atoi(roomIDStr)
 		if err != nil {
-			slog.Error("invalid user_id", "value", userIDStr)
+			slog.Error("invalid room_id", "value", roomIDStr)
 			conn.Close()
 			return
 		}
@@ -54,11 +55,11 @@ func ServeWS(h *hub.Hub, msgSvc service.MessageService, userSvc service.UserServ
 		h.Register <- client
 
 		go writePump(client)
-		go readPump(client, h, msgSvc, userSvc)
+		go readPump(client, h, msgSvc, userSvc, pool)
 	}
 }
 
-func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, userSvc service.UserService) {
+func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, userSvc service.UserService, pool *worker.Pool) {
 	defer func() {
 		h.Unregister <- client
 		client.Conn.Close()
@@ -84,41 +85,45 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 			continue
 		}
 
-		msg := &domain.Message{
-			Text:   incoming.Text,
-			RoomID: client.RoomID,
-			UserID: client.UserID,
-		}
+		pool.Submit(func() {
+			msg := &domain.Message{
+				Text:   incoming.Text,
+				RoomID: client.RoomID,
+				UserID: client.UserID,
+			}
 
-		if err := msgSvc.Create(context.Background(), msg); err != nil {
-			slog.Error("failed to save message", "error", err)
-			continue
-		}
+			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			defer cancel()
+			if err := msgSvc.Create(ctx, msg); err != nil {
+				slog.Error("failed to save message", "error", err)
+				return
+			}
 
-		username := "unknown"
-		user, err := userSvc.GetByID(context.Background(), client.UserID)
-		if err != nil {
-			slog.Warn("failed to get user for broadcast", "user_id", client.UserID)
-		}
+			username := "unknown"
+			user, err := userSvc.GetByID(ctx, client.UserID)
+			if err != nil {
+				slog.Warn("failed to get user for broadcast", "user_id", client.UserID)
+			}
 
-		if user != nil {
-			username = user.FullName
-		}
+			if user != nil {
+				username = user.FullName
+			}
 
-		response := map[string]any{
-			"type":       "message",
-			"id":         msg.ID,
-			"user_id":    client.UserID,
-			"user":       username,
-			"text":       msg.Text,
-			"created_at": msg.CreatedAt,
-		}
+			response := map[string]any{
+				"type":       "message",
+				"id":         msg.ID,
+				"user_id":    client.UserID,
+				"user":       username,
+				"text":       msg.Text,
+				"created_at": msg.CreatedAt,
+			}
 
-		data, _ := json.Marshal(response)
-		h.Broadcast <- hub.BroadcastMsg{
-			RoomID: msg.RoomID,
-			Data:   data,
-		}
+			data, _ := json.Marshal(response)
+			h.Broadcast <- hub.BroadcastMsg{
+				RoomID: msg.RoomID,
+				Data:   data,
+			}
+		})
 	}
 }
 

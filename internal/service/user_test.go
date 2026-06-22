@@ -3,17 +3,17 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"web-chat/internal/apperrors"
 	"web-chat/internal/domain"
 )
 
 type mockUserService struct {
-	createFunc  func(ctx context.Context, user *domain.User) error
-	getByIDFunc func(ctx context.Context, id int) (*domain.User, error)
-	updateFunc  func(ctx context.Context, user *domain.User) error
-	deleteFunc  func(ctx context.Context, id int) error
+	createFunc     func(ctx context.Context, user *domain.User) error
+	getByIDFunc    func(ctx context.Context, id int) (*domain.User, error)
+	getByEmailFunc func(ctx context.Context, email string) (*domain.User, error)
+	updateFunc     func(ctx context.Context, user *domain.User) error
+	deleteFunc     func(ctx context.Context, id int) error
 }
 
 func (m *mockUserService) Create(ctx context.Context, user *domain.User) error {
@@ -26,6 +26,13 @@ func (m *mockUserService) Create(ctx context.Context, user *domain.User) error {
 func (m *mockUserService) GetByID(ctx context.Context, id int) (*domain.User, error) {
 	if m.getByIDFunc != nil {
 		return m.getByIDFunc(ctx, id)
+	}
+	return nil, nil
+}
+
+func (m *mockUserService) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	if m.getByEmailFunc != nil {
+		return m.getByEmailFunc(ctx, email)
 	}
 	return nil, nil
 }
@@ -50,6 +57,7 @@ func TestCreateUser_Success(t *testing.T) {
 	user := &domain.User{
 		FullName: "name",
 		Email:    "2@2sdsdsd.ru",
+		Password: "12345678",
 	}
 
 	err := svc.Create(context.Background(), user)
@@ -65,6 +73,7 @@ func TestGetByIDUser_Success(t *testing.T) {
 				ID:       1,
 				FullName: "name",
 				Email:    "tiger@gmail.com",
+				Password: "12345678910",
 			}, nil
 		},
 	}
@@ -73,13 +82,34 @@ func TestGetByIDUser_Success(t *testing.T) {
 
 	user, err := svc.GetByID(context.Background(), 1)
 	if err != nil {
-		t.Errorf("не должно быть ошибки, а получили: %v", err)
+		t.Errorf("there shouldn't be any errors, but i got %v", err)
 	}
 	if user == nil {
 		t.Errorf("user shouldn't be nil")
 	}
+}
 
-	fmt.Printf("user: %v\n", user)
+func TestGetByEmail_Success(t *testing.T) {
+	mock := &mockUserService{
+		getByEmailFunc: func(ctx context.Context, email string) (*domain.User, error) {
+			return &domain.User{
+				ID:       1,
+				FullName: "name",
+				Email:    "t@t.com",
+				Password: "12345678910",
+			}, nil
+		},
+	}
+
+	svc := NewUserMemory(mock)
+
+	user, err := svc.repo.GetByEmail(context.Background(), "t@t.com")
+	if err != nil {
+		t.Errorf("there shouldn't be any errors, but i got %v", err)
+	}
+	if user == nil {
+		t.Errorf("user shouldn't be nil")
+	}
 }
 
 func TestUpdateUser_Success(t *testing.T) {
@@ -90,6 +120,7 @@ func TestUpdateUser_Success(t *testing.T) {
 	user := &domain.User{
 		FullName: "name",
 		Email:    "2@2sdsdsd.ru",
+		Password: "12345678",
 	}
 
 	err := svc.Update(context.Background(), user)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"web-chat/internal/auth"
 	"web-chat/internal/domain"
 	"web-chat/internal/dto"
 	"web-chat/internal/service"
@@ -27,6 +28,7 @@ func (m *MessageHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	message.UserID = auth.UserIDFromContext(r.Context())
 	if err := m.svc.Create(r.Context(), &message); err != nil {
 		writeAppError(w, err)
 		return
@@ -97,14 +99,8 @@ func (m *MessageHandler) GetByRoomID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MessageHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.URL.Query().Get("user_id")
+	userID := auth.UserIDFromContext(r.Context())
 	idStr := r.PathValue("id")
-
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		http.Error(w, "invalid user_id", http.StatusBadRequest)
-		return
-	}
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -122,14 +118,8 @@ func (m *MessageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MessageHandler) DeleteByRoom(w http.ResponseWriter, r *http.Request) {
-	userIDStr := r.URL.Query().Get("user_id")
+	userID := auth.UserIDFromContext(r.Context())
 	roomIDStr := r.PathValue("room_id")
-
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		http.Error(w, "invalid user_id", http.StatusBadRequest)
-		return
-	}
 
 	roomID, err := strconv.Atoi(roomIDStr)
 	if err != nil {

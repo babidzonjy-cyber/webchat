@@ -15,6 +15,8 @@ func writeAppError(w http.ResponseWriter, err error) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 	case errors.Is(err, apperrors.ErrValidation):
 		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, apperrors.ErrConflict):
+		http.Error(w, "user with this email already exists", http.StatusConflict)
 	default:
 		slog.Error("internal error", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)

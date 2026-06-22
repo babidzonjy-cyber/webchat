@@ -2,16 +2,19 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"web-chat/internal/apperrors"
 	"web-chat/internal/domain"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository interface {
 	Create(ctx context.Context, user *domain.User) error
 	GetByID(ctx context.Context, id int) (*domain.User, error)
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
 	Delete(ctx context.Context, id int) error
 }
@@ -31,7 +34,16 @@ func (u *userPG) Create(ctx context.Context, user *domain.User) error {
 		RETURNING id, created_at
 	`
 
-	return u.pool.QueryRow(ctx, query, user.FullName, user.Email, user.Password, user.CreatedAt).Scan(&user.ID, &user.CreatedAt)
+	err := u.pool.QueryRow(ctx, query, user.FullName, user.Email, user.Password, user.CreatedAt).Scan(&user.ID, &user.CreatedAt)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return apperrors.ErrConflict
+		}
+		return err
+	}
+
+	return nil
 }
 
 func (u *userPG) GetByID(ctx context.Context, id int) (*domain.User, error) {
@@ -40,6 +52,22 @@ func (u *userPG) GetByID(ctx context.Context, id int) (*domain.User, error) {
 
 	user := &domain.User{}
 	if err := u.pool.QueryRow(ctx, query, id).Scan(
+		&user.ID, &user.FullName, &user.Email, &user.Password, &user.CreatedAt,
+	); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (u *userPG) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	query := `
+	SELECT id, full_name, email, password, created_at FROM webchat.users WHERE email = $1
+	`
+
+	user := &domain.User{}
+
+	if err := u.pool.QueryRow(ctx, query, email).Scan(
 		&user.ID, &user.FullName, &user.Email, &user.Password, &user.CreatedAt,
 	); err != nil {
 		return nil, err
