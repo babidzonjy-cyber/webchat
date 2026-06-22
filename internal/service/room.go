@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"web-chat/internal/domain"
 	"web-chat/internal/repository"
 )
@@ -26,7 +27,7 @@ func NewRoomMemory(repo repository.RoomRepository) *roomMemory {
 
 func (r *roomMemory) Create(ctx context.Context, room *domain.Room) error {
 	if err := r.repo.Create(ctx, room); err != nil {
-		return err
+		return fmt.Errorf("service.Create room: %d, error %w", room.ID, err)
 	}
 
 	return nil
@@ -36,16 +37,16 @@ func (r *roomMemory) GetByID(ctx context.Context, id int) (*domain.Room, error) 
 	room, err := r.repo.GetByID(ctx, id)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("service.GetByID room %d: %w", id, err)
 	}
 
-	return room, err
+	return room, nil
 }
 
 func (r *roomMemory) GetAll(ctx context.Context) ([]*domain.Room, error) {
 	rooms, err := r.repo.GetAll(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("service.GetAll error: %w", err)
 	}
 
 	return rooms, nil
@@ -53,7 +54,7 @@ func (r *roomMemory) GetAll(ctx context.Context) ([]*domain.Room, error) {
 
 func (r *roomMemory) Update(ctx context.Context, room *domain.Room) error {
 	if err := r.repo.Update(ctx, room); err != nil {
-		return err
+		return fmt.Errorf("service.Update room: %d, error: %w", room.ID, err)
 	}
 
 	return nil
@@ -61,7 +62,7 @@ func (r *roomMemory) Update(ctx context.Context, room *domain.Room) error {
 
 func (r *roomMemory) Delete(ctx context.Context, id int) error {
 	if err := r.repo.Delete(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("service.Delete room %d: %w", id, err)
 	}
 
 	return nil

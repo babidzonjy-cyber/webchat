@@ -1,4 +1,21 @@
 services:
+    webchat-app:
+        build: .
+        container_name: webchat-app
+        ports:
+            - 8080:8080
+            - 6060:6060
+        environment:
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            - POSTGRES_DB=${POSTGRES_DB}
+            - LOG_LEVEL=${LOG_LEVEL}
+            - LOG_FORMAT=${LOG_FORMAT}
+            - POSTGRES_HOST=webchat-postgres
+            - JWT_SECRET=${JWT_SECRET}
+        depends_on:
+            webchat-postgres:
+                condition: service_healthy
     webchat-postgres:
         image: postgres:18.1-bookworm
         container_name: webchat-env-postgres
@@ -11,7 +28,19 @@ services:
         volumes:
             - ./out/pgdata:/var/lib/postgresql
         restart: always
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+                ]
+            interval: 3s
+            timeout: 3s
+            retries: 10
     webchat-postgres-migrate:
         image: migrate/migrate:v4.19.1
         volumes:
             - ./internal/migrations:/migrations
+        depends_on:
+            webchat-postgres:
+                condition: service_healthy

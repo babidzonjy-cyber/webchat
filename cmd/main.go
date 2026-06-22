@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+	"web-chat/internal/auth"
 	ws "web-chat/internal/delivery/websocket"
 	"web-chat/internal/handler"
 	"web-chat/internal/hub"
@@ -16,6 +18,7 @@ import (
 	"web-chat/internal/middleware"
 	"web-chat/internal/repository"
 	"web-chat/internal/service"
+	"web-chat/internal/worker"
 )
 
 func main() {
@@ -27,7 +30,16 @@ func main() {
 	log := logger.NewLogger(cfg)
 	slog.SetDefault(log)
 
-	db := fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", os.Getenv("POSTGRES_USER"), os.Getenv("POSTGRES_PASSWORD"), os.Getenv("POSTGRES_DB"))
+	host := os.Getenv("POSTGRES_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	db := fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable",
+		os.Getenv("POSTGRES_USER"),
+		os.Getenv("POSTGRES_PASSWORD"),
+		host,
+		os.Getenv("POSTGRES_DB"),
+	)
 
 	pool, err := repository.NewPool(context.Background(), db)
 	if err != nil {
@@ -48,42 +60,51 @@ func main() {
 	roomHandler := handler.NewRoomHandler(roomService)
 	messageHandler := handler.NewMessageHandler(messageService)
 
+	authHandler := handler.NewAuthHandler(userService)
+
 	chatHub := hub.NewHub()
 	go chatHub.Run()
 
-	wsHandler := ws.ServeWS(chatHub, messageService, userService)
+	chatPool := worker.NewPool(5)
+
+	wsHandler := ws.ServeWS(chatHub, messageService, userService, chatPool)
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /users", userHandler.Create)
-	mux.HandleFunc("GET /users/{id}", userHandler.GetByID)
-	mux.HandleFunc("PUT /users/{id}", userHandler.Update)
-	mux.HandleFunc("DELETE /users/{id}", userHandler.Delete)
+	mux.HandleFunc("POST /auth/register", authHandler.Register)
+	mux.HandleFunc("POST /auth/login", authHandler.Login)
 
-	mux.HandleFunc("POST /rooms", roomHandler.Create)
-	mux.HandleFunc("GET /rooms/{id}", roomHandler.GetByID)
-	mux.HandleFunc("GET /rooms", roomHandler.GetAll)
-	mux.HandleFunc("PUT /rooms/{id}", roomHandler.Update)
-	mux.HandleFunc("DELETE /rooms/{id}", roomHandler.Delete)
+	mux.Handle("GET /users/{id}", auth.AuthMiddleware(http.HandlerFunc(userHandler.GetByID)))
+	mux.Handle("PUT /users/{id}", auth.AuthMiddleware(http.HandlerFunc(userHandler.Update)))
+	mux.Handle("DELETE /users/{id}", auth.AuthMiddleware(http.HandlerFunc(userHandler.Delete)))
 
-	mux.HandleFunc("POST /rooms/{room_id}/messages", messageHandler.Create)
-	mux.HandleFunc("GET /messages/{id}", messageHandler.GetByID)
-	mux.HandleFunc("GET /rooms/{room_id}/messages", messageHandler.GetByRoomID)
-	mux.HandleFunc("DELETE /messages/{id}", messageHandler.Delete)
-	mux.HandleFunc("DELETE /rooms/{room_id}/messages", messageHandler.DeleteByRoom)
+	mux.Handle("POST /rooms", auth.AuthMiddleware(http.HandlerFunc(roomHandler.Create)))
+	mux.Handle("GET /rooms/{id}", auth.AuthMiddleware(http.HandlerFunc(roomHandler.GetByID)))
+	mux.Handle("GET /rooms", auth.AuthMiddleware(http.HandlerFunc(roomHandler.GetAll)))
+	mux.Handle("PUT /rooms/{id}", auth.AuthMiddleware(http.HandlerFunc(roomHandler.Update)))
+	mux.Handle("DELETE /rooms/{id}", auth.AuthMiddleware(http.HandlerFunc(roomHandler.Delete)))
 
-	mux.HandleFunc("GET /ws/chat/{room_id}", wsHandler)
+	mux.Handle("POST /rooms/{room_id}/messages", auth.AuthMiddleware(http.HandlerFunc(messageHandler.Create)))
+	mux.Handle("GET /messages/{id}", auth.AuthMiddleware(http.HandlerFunc(messageHandler.GetByID)))
+	mux.Handle("GET /rooms/{room_id}/messages", auth.AuthMiddleware(http.HandlerFunc(messageHandler.GetByRoomID)))
+	mux.Handle("DELETE /messages/{id}", auth.AuthMiddleware(http.HandlerFunc(messageHandler.Delete)))
+	mux.Handle("DELETE /rooms/{room_id}/messages", auth.AuthMiddleware(http.HandlerFunc(messageHandler.DeleteByRoom)))
 
+	mux.Handle("GET /ws/chat/{room_id}", auth.AuthMiddleware(wsHandler))
+
+	rateLimiter := middleware.NewRateLimiter(10)
 	muxWithLogging := middleware.LoggingMiddleware(mux)
+	muxLogRate := rateLimiter.Middleware(muxWithLogging)
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: muxWithLogging,
+		Handler: muxLogRate,
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	go http.ListenAndServe(":6060", nil)
 	go func() {
 		slog.Info("server starting", "port", 8080)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -93,6 +114,7 @@ func main() {
 
 	<-ctx.Done()
 	slog.Info("shutting down...")
+	chatPool.Shutdown()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

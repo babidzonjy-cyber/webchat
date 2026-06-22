@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"web-chat/internal/auth"
 	"web-chat/internal/domain"
 	"web-chat/internal/dto"
 	"web-chat/internal/service"
@@ -76,6 +77,12 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	user.ID = id
 
+	userID := auth.UserIDFromContext(r.Context())
+	if userID != user.ID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	if err := h.svc.Update(r.Context(), &user); err != nil {
 		writeAppError(w, err)
 		return
@@ -93,6 +100,12 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	userID := auth.UserIDFromContext(r.Context())
+	if userID != id {
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
 

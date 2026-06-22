@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"web-chat/internal/auth"
 	"web-chat/internal/domain"
 	"web-chat/internal/dto"
 	"web-chat/internal/service"
@@ -27,6 +28,7 @@ func (h *RoomHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	room.CreatedBy = auth.UserIDFromContext(r.Context())
 	if err := h.svc.Create(r.Context(), &room); err != nil {
 		writeAppError(w, err)
 		return
@@ -88,7 +90,16 @@ func (h *RoomHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room.ID = id
+	existing, err := h.svc.GetByID(r.Context(), id)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
 
+	if existing.CreatedBy != auth.UserIDFromContext(r.Context()) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	if err := h.svc.Update(r.Context(), &room); err != nil {
 		writeAppError(w, err)
 		return
@@ -109,6 +120,15 @@ func (h *RoomHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existing, err := h.svc.GetByID(r.Context(), id)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if existing.CreatedBy != auth.UserIDFromContext(r.Context()) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	if err := h.svc.Delete(r.Context(), id); err != nil {
 		writeAppError(w, err)
 		return

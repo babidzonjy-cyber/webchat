@@ -8,6 +8,13 @@ access-rights:
 webchat-run:
 	@go run cmd/main.go
 
+build:
+	@docker compose build
+up:
+	@docker compose up
+down:
+	@docker compose down
+
 env-up:
 	@docker compose up -d webchat-postgres
 env-down:
