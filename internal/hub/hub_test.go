@@ -6,8 +6,68 @@ import (
 	"time"
 )
 
+type mockOnlineRepository struct {
+	mtx   sync.Mutex
+	rooms map[int]map[int]struct{}
+}
+
+func (m *mockOnlineRepository) AddOnline(roomID, userID int) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if m.rooms[roomID] == nil {
+		m.rooms[roomID] = make(map[int]struct{})
+	}
+
+	m.rooms[roomID][userID] = struct{}{}
+
+	return nil
+}
+
+func (m *mockOnlineRepository) RemoveOnline(roomID, userID int) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	delete(m.rooms[roomID], userID)
+
+	return nil
+}
+
+func (m *mockOnlineRepository) GetOnlineCount(roomID int) (int, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return len(m.rooms[roomID]), nil
+}
+
+func (m *mockOnlineRepository) GetOnlineUsers(roomID int) ([]int, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	ids := make([]int, 0, len(m.rooms[roomID]))
+
+	for id := range m.rooms[roomID] {
+		ids = append(ids, id)
+	}
+
+	return ids, nil
+}
+
+func (m *mockOnlineRepository) IsOnline(roomID, userID int) (bool, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if _, ok := m.rooms[roomID][userID]; ok {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func newTestHub() *Hub {
-	h := NewHub()
+	h := NewHub(&mockOnlineRepository{
+		rooms: make(map[int]map[int]struct{}),
+	})
 	go h.Run()
 	time.Sleep(5 * time.Millisecond)
 	return h

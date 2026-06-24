@@ -34,6 +34,12 @@ func main() {
 	if host == "" {
 		host = "localhost"
 	}
+
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
 	db := fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable",
 		os.Getenv("POSTGRES_USER"),
 		os.Getenv("POSTGRES_PASSWORD"),
@@ -47,6 +53,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+
+	onlineRedis, err := repository.NewRedisOnline(redisAddr)
+	defer onlineRedis.Close()
+
+	if err != nil {
+		slog.Error("failed to connect to redis", "error", err)
+		os.Exit(1)
+	}
 
 	userRepo := repository.NewUserPG(pool)
 	roomRepo := repository.NewRoomPG(pool)
@@ -62,7 +76,7 @@ func main() {
 
 	authHandler := handler.NewAuthHandler(userService)
 
-	chatHub := hub.NewHub()
+	chatHub := hub.NewHub(onlineRedis)
 	go chatHub.Run()
 
 	chatPool := worker.NewPool(5)
@@ -120,6 +134,7 @@ func main() {
 	defer cancel()
 
 	srv.Shutdown(shutdownCtx)
+	onlineRedis.Close()
 	pool.Close()
 	slog.Info("server stopped")
 }
