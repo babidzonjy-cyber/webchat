@@ -55,12 +55,12 @@ func main() {
 	defer pool.Close()
 
 	onlineRedis, err := repository.NewRedisOnline(redisAddr)
-	defer onlineRedis.Close()
-
 	if err != nil {
 		slog.Error("failed to connect to redis", "error", err)
 		os.Exit(1)
 	}
+
+	defer onlineRedis.Close()
 
 	userRepo := repository.NewUserPG(pool)
 	roomRepo := repository.NewRoomPG(pool)
