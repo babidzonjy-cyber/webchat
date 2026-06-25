@@ -35,7 +35,7 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 		}
 
 		pool.Submit(func() {
-			msg := newWsMessage(client, incoming)
+			msg := buildDomainMessage(client, incoming)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 			defer cancel()
@@ -45,6 +45,14 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 				slog.Error("error", err)
 				return
 			}
+
+			errMsg := ErrorMessage{
+				Type:    "error",
+				Message: "failed to process message",
+			}
+
+			errData, _ := json.Marshal(errMsg)
+			client.Send <- errData
 
 			data, _ := json.Marshal(response)
 			h.Broadcast <- hub.BroadcastMsg{

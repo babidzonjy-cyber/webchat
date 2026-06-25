@@ -4,7 +4,7 @@ import "time"
 
 type IncomingMessage struct {
 	Type    string `json:"type"`
-	Content string `json:"text"`
+	Content string `json:"content"`
 }
 
 type OutgoingMessage struct {

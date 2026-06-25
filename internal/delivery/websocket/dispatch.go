@@ -35,7 +35,7 @@ func handleIncomingMessage(ctx context.Context, msgSvc service.MessageService, u
 	return response, nil
 }
 
-func newWsMessage(client *hub.Client, incoming IncomingMessage) *domain.Message {
+func buildDomainMessage(client *hub.Client, incoming IncomingMessage) *domain.Message {
 	return &domain.Message{
 		Text:   incoming.Content,
 		RoomID: client.RoomID,
