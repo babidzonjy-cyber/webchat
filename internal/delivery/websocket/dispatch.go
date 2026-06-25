@@ -8,7 +8,7 @@ import (
 	"web-chat/internal/service"
 )
 
-func readWsResponse(ctx context.Context, msgSvc service.MessageService, userSvc service.UserService, msg *domain.Message, client *hub.Client) (*OutGoingMessage, error) {
+func handleIncomingMessage(ctx context.Context, msgSvc service.MessageService, userSvc service.UserService, msg *domain.Message, client *hub.Client) (*OutgoingMessage, error) {
 	if err := msgSvc.Create(ctx, msg); err != nil {
 		return nil, fmt.Errorf("failed to save message %w", err)
 	}
@@ -23,7 +23,7 @@ func readWsResponse(ctx context.Context, msgSvc service.MessageService, userSvc 
 		username = user.FullName
 	}
 
-	response := &OutGoingMessage{
+	response := &OutgoingMessage{
 		Type:      "message",
 		ID:        msg.ID,
 		UserID:    user.ID,
@@ -37,7 +37,7 @@ func readWsResponse(ctx context.Context, msgSvc service.MessageService, userSvc 
 
 func newWsMessage(client *hub.Client, incoming IncomingMessage) *domain.Message {
 	return &domain.Message{
-		Text:   incoming.Text,
+		Text:   incoming.Content,
 		RoomID: client.RoomID,
 		UserID: client.UserID,
 	}

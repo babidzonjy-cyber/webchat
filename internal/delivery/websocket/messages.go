@@ -3,11 +3,11 @@ package websocket
 import "time"
 
 type IncomingMessage struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type    string `json:"type"`
+	Content string `json:"text"`
 }
 
-type OutGoingMessage struct {
+type OutgoingMessage struct {
 	Type      string    `json:"type"`
 	ID        int       `json:"id"`
 	UserID    int       `json:"user_id"`

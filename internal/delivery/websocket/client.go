@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"time"
-	"web-chat/internal/delivery/websocket"
 	"web-chat/internal/hub"
 	"web-chat/internal/service"
 	"web-chat/internal/worker"
@@ -41,9 +40,10 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 			defer cancel()
 
-			response, err := readWsResponse(ctx, msgSvc, userSvc, msg, client)
+			response, err := handleIncomingMessage(ctx, msgSvc, userSvc, msg, client)
 			if err != nil {
 				slog.Error("error", err)
+				return
 			}
 
 			data, _ := json.Marshal(response)
