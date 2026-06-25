@@ -106,13 +106,11 @@ func main() {
 
 	mux.Handle("GET /ws/chat/{room_id}", auth.AuthMiddleware(wsHandler))
 
-	rateLimiter := middleware.NewRateLimiter(10)
 	muxWithLogging := middleware.LoggingMiddleware(mux)
-	muxLogRate := rateLimiter.Middleware(muxWithLogging)
 
 	srv := &http.Server{
 		Addr:    ":8080",
-		Handler: muxLogRate,
+		Handler: muxWithLogging,
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
