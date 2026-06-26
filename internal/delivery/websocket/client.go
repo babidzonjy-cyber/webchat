@@ -43,16 +43,15 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 			response, err := handleIncomingMessage(ctx, msgSvc, userSvc, msg, client)
 			if err != nil {
 				slog.Error("error", err)
+				errMsg := ErrorMessage{
+					Type:    "error",
+					Message: "failed to process message",
+				}
+
+				errData, _ := json.Marshal(errMsg)
+				client.Send <- errData
 				return
 			}
-
-			errMsg := ErrorMessage{
-				Type:    "error",
-				Message: "failed to process message",
-			}
-
-			errData, _ := json.Marshal(errMsg)
-			client.Send <- errData
 
 			data, _ := json.Marshal(response)
 			h.Broadcast <- hub.BroadcastMsg{
@@ -68,7 +67,13 @@ func writePump(client *hub.Client) {
 
 	for msg := range client.Send {
 		if err := client.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			break
+			slog.Error(
+				"failed to write websocket message",
+				"error", err,
+				"user_id", client.UserID,
+				"room_id", client.RoomID,
+			)
+			return
 		}
 	}
 }
