@@ -30,8 +30,10 @@ type IsUserOnlineRequest struct {
 	Result chan bool
 }
 
+type ClientSet map[*Client]struct{}
+
 type Hub struct {
-	Clients          map[*Client]bool
+	RoomClients      map[int]ClientSet
 	Broadcast        chan BroadcastMsg
 	Register         chan *Client
 	Unregister       chan *Client
@@ -49,7 +51,7 @@ type BroadcastMsg struct {
 
 func NewHub(online repository.OnlineRepository) *Hub {
 	return &Hub{
-		Clients:          make(map[*Client]bool),
+		RoomClients:      make(map[int]ClientSet),
 		Broadcast:        make(chan BroadcastMsg, 256),
 		Register:         make(chan *Client),
 		Unregister:       make(chan *Client),
@@ -64,32 +66,15 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			h.Clients[client] = true
-			if err := h.online.AddOnline(client.RoomID, client.UserID); err != nil {
+			if err := h.register(client); err != nil {
 				slog.Error("redis add online", "room", client.RoomID, "user", client.UserID, "error", err)
 			}
 		case client := <-h.Unregister:
-			if _, exists := h.Clients[client]; exists {
-				if err := h.online.RemoveOnline(client.RoomID, client.UserID); err != nil {
-					slog.Error("redis remove online", "room", client.RoomID, "user", client.UserID, "error", err)
-				}
-				delete(h.Clients, client)
-				close(client.Send)
+			if err := h.unregister(client); err != nil {
+				slog.Error("redis remove online", "room", client.RoomID, "user", client.UserID, "error", err)
 			}
 		case msg := <-h.Broadcast:
-			for client := range h.Clients {
-				if client.RoomID == msg.RoomID {
-					select {
-					case client.Send <- msg.Data:
-					default:
-						close(client.Send)
-						delete(h.Clients, client)
-						if err := h.online.RemoveOnline(client.RoomID, client.UserID); err != nil {
-							slog.Error("broadcast redis remove online", "room", client.RoomID, "user", client.UserID, "error", err)
-						}
-					}
-				}
-			}
+			h.broadcast(msg)
 		case req := <-h.GetCount:
 			count, err := h.online.GetOnlineCount(req.RoomID)
 			if err != nil {
@@ -138,4 +123,38 @@ func (h *Hub) GetUsersInRoom(roomID int) []int {
 	}
 	h.GetClientsInRoom <- req
 	return <-req.Result
+}
+
+func (h *Hub) register(client *Client) error {
+	if _, exists := h.RoomClients[client.RoomID]; !exists {
+		h.RoomClients[client.RoomID] = make(map[*Client]struct{})
+	}
+
+	h.RoomClients[client.RoomID][client] = struct{}{}
+
+	return h.online.AddOnline(client.RoomID, client.UserID)
+}
+
+func (h *Hub) unregister(client *Client) error {
+	if _, exists := h.RoomClients[client.RoomID][client]; exists {
+		delete(h.RoomClients[client.RoomID], client)
+		close(client.Send)
+
+		if len(h.RoomClients[client.RoomID]) == 0 {
+			delete(h.RoomClients, client.RoomID)
+		}
+	}
+	return h.online.RemoveOnline(client.RoomID, client.UserID)
+}
+
+func (h *Hub) broadcast(msg BroadcastMsg) {
+	for client := range h.RoomClients[msg.RoomID] {
+		select {
+		case client.Send <- msg.Data:
+		default:
+			if err := h.unregister(client); err != nil {
+				slog.Error("redis remove online", "room", client.RoomID, "user", client.UserID, "error", err)
+			}
+		}
+	}
 }

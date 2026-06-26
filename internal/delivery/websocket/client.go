@@ -67,7 +67,13 @@ func writePump(client *hub.Client) {
 
 	for msg := range client.Send {
 		if err := client.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			break
+			slog.Error(
+				"failed to write websocket message",
+				"error", err,
+				"user_id", client.UserID,
+				"room_id", client.RoomID,
+			)
+			return
 		}
 	}
 }
