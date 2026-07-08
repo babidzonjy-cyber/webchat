@@ -11,12 +11,14 @@ import (
 )
 
 type MessageHandler struct {
-	svc service.MessageService
+	svc            service.MessageService
+	roomMembersSvc service.RoomMembersSvc
 }
 
-func NewMessageHandler(svc service.MessageService) *MessageHandler {
+func NewMessageHandler(svc service.MessageService, roomMembersSvc service.RoomMembersSvc) *MessageHandler {
 	return &MessageHandler{
-		svc: svc,
+		svc:            svc,
+		roomMembersSvc: roomMembersSvc,
 	}
 }
 
@@ -28,15 +30,28 @@ func (m *MessageHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message.UserID = auth.UserIDFromContext(r.Context())
-
 	roomID, err := strconv.Atoi(r.PathValue("room_id"))
 	if err != nil {
 		http.Error(w, "invalid room_id", http.StatusBadRequest)
 		return
 	}
 
+	userID := auth.UserIDFromContext(r.Context())
+	isMember, err := m.roomMembersSvc.IsMember(
+		r.Context(),
+		&domain.RoomMembers{RoomID: roomID, UserID: userID},
+	)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+	if !isMember {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	message.RoomID = roomID
+	message.UserID = userID
 
 	if err := m.svc.Create(r.Context(), &message); err != nil {
 		writeAppError(w, err)

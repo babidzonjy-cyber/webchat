@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"web-chat/internal/auth"
+	"web-chat/internal/domain"
 	"web-chat/internal/hub"
 	"web-chat/internal/service"
 	"web-chat/internal/worker"
@@ -18,26 +19,45 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func ServeWS(h *hub.Hub, msgSvc service.MessageService, userSvc service.UserService, pool *worker.Pool) http.HandlerFunc {
+func ServeWS(
+	h *hub.Hub,
+	msgSvc service.MessageService,
+	userSvc service.UserService,
+	pool *worker.Pool,
+	roomMembersSvc service.RoomMembersSvc,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			slog.Error("websocket upgrade failed", "error", err)
-			return
-		}
-
 		roomIDStr := r.PathValue("room_id")
 		userID := auth.UserIDFromContext(r.Context())
 
 		if userID == 0 {
-			conn.Close()
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		roomID, err := strconv.Atoi(roomIDStr)
 		if err != nil {
-			slog.Error("invalid room_id", "value", roomIDStr)
-			conn.Close()
+			http.Error(w, "invalid room_id", http.StatusBadRequest)
+			return
+		}
+
+		isMember, err := roomMembersSvc.IsMember(
+			r.Context(),
+			&domain.RoomMembers{RoomID: roomID, UserID: userID},
+		)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+
+		if !isMember {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			slog.Error("websocket upgrade failed", "error", err)
 			return
 		}
 

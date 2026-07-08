@@ -74,7 +74,7 @@ func main() {
 
 	userHandler := handler.NewUserHandler(userService)
 	roomHandler := handler.NewRoomHandler(roomService)
-	messageHandler := handler.NewMessageHandler(messageService)
+	messageHandler := handler.NewMessageHandler(messageService, roomMembersService)
 	roomMembersHandler := handler.NewRoomMembersHandler(roomMembersService)
 	onlineHandler := handler.NewOnlineHandler(onlineService)
 
@@ -85,7 +85,7 @@ func main() {
 
 	chatPool := worker.NewPool(5)
 
-	wsHandler := ws.ServeWS(chatHub, messageService, userService, chatPool)
+	wsHandler := ws.ServeWS(chatHub, messageService, userService, chatPool, roomMembersService)
 
 	mux := http.NewServeMux()
 
@@ -119,7 +119,8 @@ func main() {
 
 	mux.Handle("GET /ws/chat/{room_id}", auth.AuthMiddleware(wsHandler))
 
-	muxWithLogging := middleware.LoggingMiddleware(mux)
+	muxBodyLimit := middleware.MaxbytesMiddleware(mux)
+	muxWithLogging := middleware.LoggingMiddleware(muxBodyLimit)
 
 	srv := &http.Server{
 		Addr:              ":8080",
