@@ -63,6 +63,7 @@ func TestMessageHandler_Create_Success(t *testing.T) {
 	req := httptest.NewRequest("POST", "/rooms/{room_id}/messages", strings.NewReader(body))
 
 	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("room_id", "1")
 
 	w := httptest.NewRecorder()
 

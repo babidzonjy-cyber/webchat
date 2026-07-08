@@ -64,15 +64,18 @@ func main() {
 	userRepo := repository.NewUserPG(pool)
 	roomRepo := repository.NewRoomPG(pool)
 	msgRepo := repository.NewMessagePG(pool)
+	roomMembersRepo := repository.NewRoomMembersPG(pool)
 
 	userService := service.NewUserMemory(userRepo)
 	roomService := service.NewRoomMemory(roomRepo)
 	messageService := service.NewMessageMemory(msgRepo, roomRepo)
+	roomMembersService := service.NewRoomMembersMemory(roomMembersRepo)
 	onlineService := service.NewOnlineService(onlineRedis)
 
 	userHandler := handler.NewUserHandler(userService)
 	roomHandler := handler.NewRoomHandler(roomService)
 	messageHandler := handler.NewMessageHandler(messageService)
+	roomMembersHandler := handler.NewRoomMembersHandler(roomMembersService)
 	onlineHandler := handler.NewOnlineHandler(onlineService)
 
 	authHandler := handler.NewAuthHandler(userService)
@@ -93,7 +96,7 @@ func main() {
 	mux.Handle("PUT /users/{id}", auth.AuthMiddleware(http.HandlerFunc(userHandler.Update)))
 	mux.Handle("DELETE /users/{id}", auth.AuthMiddleware(http.HandlerFunc(userHandler.Delete)))
 
-	mux.Handle("POST /rooms", auth.AuthMiddleware(http.HandlerFunc(roomHandler.Create)))
+	mux.Handle("POST /rooms", auth.AuthMiddleware(http.HandlerFunc(roomHandler.CreateWithOwner)))
 	mux.Handle("GET /rooms/{id}", auth.AuthMiddleware(http.HandlerFunc(roomHandler.GetByID)))
 	mux.Handle("GET /rooms", auth.AuthMiddleware(http.HandlerFunc(roomHandler.GetAll)))
 	mux.Handle("PUT /rooms/{id}", auth.AuthMiddleware(http.HandlerFunc(roomHandler.Update)))
@@ -105,6 +108,11 @@ func main() {
 	mux.Handle("DELETE /messages/{id}", auth.AuthMiddleware(http.HandlerFunc(messageHandler.Delete)))
 	mux.Handle("DELETE /rooms/{room_id}/messages", auth.AuthMiddleware(http.HandlerFunc(messageHandler.DeleteByRoom)))
 
+	mux.Handle("POST /rooms/{room_id}/members", auth.AuthMiddleware(http.HandlerFunc(roomMembersHandler.Add)))
+	mux.Handle("GET /rooms/{room_id}/members", auth.AuthMiddleware(http.HandlerFunc(roomMembersHandler.List)))
+	mux.Handle("GET /rooms/{room_id}/members/{user_id}", auth.AuthMiddleware(http.HandlerFunc(roomMembersHandler.IsMember)))
+	mux.Handle("DELETE /rooms/{room_id}/members/{user_id}", auth.AuthMiddleware(http.HandlerFunc(roomMembersHandler.Remove)))
+
 	mux.Handle("GET /rooms/{id}/online_count", auth.AuthMiddleware(http.HandlerFunc(onlineHandler.OnlineCount)))
 	mux.Handle("GET /rooms/{room_id}/users/{user_id}/check_online", auth.AuthMiddleware(http.HandlerFunc(onlineHandler.CheckOnline)))
 	mux.Handle("GET /rooms/{id}/users_online", auth.AuthMiddleware(http.HandlerFunc(onlineHandler.OnlineUsers)))
@@ -114,8 +122,12 @@ func main() {
 	muxWithLogging := middleware.LoggingMiddleware(mux)
 
 	srv := &http.Server{
-		Addr:    ":8080",
-		Handler: muxWithLogging,
+		Addr:              ":8080",
+		Handler:           muxWithLogging,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

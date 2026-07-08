@@ -10,16 +10,16 @@ import (
 )
 
 type mockRoomService struct {
-	createFunc  func(ctx context.Context, room *domain.Room) error
-	getByIDFunc func(ctx context.Context, id int) (*domain.Room, error)
-	getAllFunc  func(ctx context.Context) ([]*domain.Room, error)
-	updateFunc  func(ctx context.Context, room *domain.Room) error
-	deleteFunc  func(ctx context.Context, id int) error
+	createWithOwnerFunc func(ctx context.Context, room *domain.Room) error
+	getByIDFunc         func(ctx context.Context, id int) (*domain.Room, error)
+	getAllFunc          func(ctx context.Context) ([]*domain.Room, error)
+	updateFunc          func(ctx context.Context, room *domain.Room) error
+	deleteFunc          func(ctx context.Context, id int) error
 }
 
-func (m *mockRoomService) Create(ctx context.Context, room *domain.Room) error {
-	if m.createFunc != nil {
-		return m.createFunc(ctx, room)
+func (m *mockRoomService) CreateWithOwner(ctx context.Context, room *domain.Room) error {
+	if m.createWithOwnerFunc != nil {
+		return m.createWithOwnerFunc(ctx, room)
 	}
 	return nil
 }
@@ -60,7 +60,7 @@ func TestCreateRoom_Success(t *testing.T) {
 		Name: "name",
 	}
 
-	err := svc.Create(context.Background(), room)
+	err := svc.CreateWithOwner(context.Background(), room)
 	if err != nil {
 		t.Errorf("не должно быть ошибки, а получили: %v", err)
 	}

@@ -29,6 +29,11 @@ func NewMessageMemory(repo repository.MessageRepository, roomRepo repository.Roo
 }
 
 func (m *messageMemory) Create(ctx context.Context, msg *domain.Message) error {
+	_, err := m.roomRepo.GetByID(ctx, msg.RoomID)
+	if err != nil {
+		return err
+	}
+
 	if err := m.repo.Create(ctx, msg); err != nil {
 		return fmt.Errorf("service.Create msg: %d, error: %w", msg.ID, err)
 	}

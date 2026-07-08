@@ -58,10 +58,11 @@ func (rm *roomMembersPG) Remove(ctx context.Context, members *domain.RoomMembers
 		members.UserID,
 	)
 	if err != nil {
-		if tag.RowsAffected() == 0 {
-			return apperrors.ErrNotFound
-		}
 		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return apperrors.ErrNotFound
 	}
 
 	return nil

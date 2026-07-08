@@ -42,7 +42,7 @@ func readPump(client *hub.Client, h *hub.Hub, msgSvc service.MessageService, use
 
 			response, err := handleIncomingMessage(ctx, msgSvc, userSvc, msg, client)
 			if err != nil {
-				slog.Error("error", err)
+				slog.Error("failed to proccess message", "error", err)
 				errMsg := ErrorMessage{
 					Type:    "error",
 					Message: "failed to process message",
