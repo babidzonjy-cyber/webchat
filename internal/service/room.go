@@ -8,7 +8,7 @@ import (
 )
 
 type RoomService interface {
-	Create(ctx context.Context, room *domain.Room) error
+	CreateWithOwner(ctx context.Context, room *domain.Room) error
 	GetByID(ctx context.Context, id int) (*domain.Room, error)
 	GetAll(ctx context.Context) ([]*domain.Room, error)
 	Update(ctx context.Context, room *domain.Room) error
@@ -25,9 +25,9 @@ func NewRoomMemory(repo repository.RoomRepository) *roomMemory {
 	}
 }
 
-func (r *roomMemory) Create(ctx context.Context, room *domain.Room) error {
-	if err := r.repo.Create(ctx, room); err != nil {
-		return fmt.Errorf("service.Create room: %d, error %w", room.ID, err)
+func (r *roomMemory) CreateWithOwner(ctx context.Context, room *domain.Room) error {
+	if err := r.repo.CreateWithOwner(ctx, room); err != nil {
+		return fmt.Errorf("service.CreateWithOwner room: %d, error %w", room.ID, err)
 	}
 
 	return nil

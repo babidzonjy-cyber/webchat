@@ -20,7 +20,7 @@ func NewRoomHandler(svc service.RoomService) *RoomHandler {
 	}
 }
 
-func (h *RoomHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *RoomHandler) CreateWithOwner(w http.ResponseWriter, r *http.Request) {
 	var room domain.Room
 
 	if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
@@ -29,7 +29,7 @@ func (h *RoomHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room.CreatedBy = auth.UserIDFromContext(r.Context())
-	if err := h.svc.Create(r.Context(), &room); err != nil {
+	if err := h.svc.CreateWithOwner(r.Context(), &room); err != nil {
 		writeAppError(w, err)
 		return
 	}

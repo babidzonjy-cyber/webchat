@@ -12,7 +12,7 @@ import (
 )
 
 type RoomRepository interface {
-	Create(ctx context.Context, room *domain.Room) error
+	CreateWithOwner(ctx context.Context, room *domain.Room) error
 	GetByID(ctx context.Context, id int) (*domain.Room, error)
 	GetAll(ctx context.Context) ([]*domain.Room, error)
 	Update(ctx context.Context, room *domain.Room) error
@@ -27,22 +27,47 @@ func NewRoomPG(pool *pgxpool.Pool) *roomPG {
 	return &roomPG{pool: pool}
 }
 
-func (r *roomPG) Create(ctx context.Context, room *domain.Room) error {
-	query := `
+func (r *roomPG) CreateWithOwner(ctx context.Context, room *domain.Room) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	query1 := `
 		INSERT INTO webchat.rooms(name, created_by)
 		VALUES ($1, $2)
 		RETURNING id, created_at
 	`
 
-	return r.pool.QueryRow(
+	err = tx.QueryRow(
 		ctx,
-		query,
+		query1,
 		room.Name,
 		room.CreatedBy,
 	).Scan(
 		&room.ID,
 		&room.CreatedAt,
 	)
+	if err != nil {
+		return err
+	}
+
+	query2 := `
+		INSERT INTO webchat.room_members(room_id, user_id)
+		VALUES ($1, $2)
+	`
+	_, err = tx.Exec(
+		ctx,
+		query2,
+		room.ID,
+		room.CreatedBy,
+	)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *roomPG) GetByID(ctx context.Context, id int) (*domain.Room, error) {

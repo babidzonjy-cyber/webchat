@@ -11,16 +11,16 @@ import (
 )
 
 type mockRoomHandler struct {
-	createFunc  func(ctx context.Context, room *domain.Room) error
-	getByIDFunc func(ctx context.Context, id int) (*domain.Room, error)
-	getAllFunc  func(ctx context.Context) ([]*domain.Room, error)
-	updateFunc  func(ctx context.Context, room *domain.Room) error
-	deleteFunc  func(ctx context.Context, id int) error
+	createWithOwnerFunc func(ctx context.Context, room *domain.Room) error
+	getByIDFunc         func(ctx context.Context, id int) (*domain.Room, error)
+	getAllFunc          func(ctx context.Context) ([]*domain.Room, error)
+	updateFunc          func(ctx context.Context, room *domain.Room) error
+	deleteFunc          func(ctx context.Context, id int) error
 }
 
-func (m *mockRoomHandler) Create(ctx context.Context, room *domain.Room) error {
-	if m.createFunc != nil {
-		return m.createFunc(ctx, room)
+func (m *mockRoomHandler) CreateWithOwner(ctx context.Context, room *domain.Room) error {
+	if m.createWithOwnerFunc != nil {
+		return m.createWithOwnerFunc(ctx, room)
 	}
 	return nil
 }
@@ -66,7 +66,7 @@ func TestRoomHandler_Create_Success(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	h.Create(w, req)
+	h.CreateWithOwner(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d", w.Code)
@@ -86,7 +86,7 @@ func TestRoomHandler_Create_BadJSON(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	h.Create(w, req)
+	h.CreateWithOwner(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
