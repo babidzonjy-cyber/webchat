@@ -87,14 +87,31 @@ func (m *MessageHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 func (m *MessageHandler) GetByRoomID(w http.ResponseWriter, r *http.Request) {
 	roomIDStr := r.PathValue("room_id")
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
 
 	roomID, err := strconv.Atoi(roomIDStr)
 	if err != nil {
 		http.Error(w, "invalid room_id", http.StatusBadRequest)
 		return
 	}
+
+	userID := auth.UserIDFromContext(r.Context())
+
+	isMember, err := m.roomMembersSvc.IsMember(
+		r.Context(),
+		&domain.RoomMembers{RoomID: roomID, UserID: userID},
+	)
+	if err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	if !isMember {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
 
 	limit := 50
 	if limitStr != "" {

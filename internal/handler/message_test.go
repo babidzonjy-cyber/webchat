@@ -53,8 +53,9 @@ func (m *mockMessageHandler) DeleteByRoom(ctx context.Context, roomID, userID in
 }
 
 func TestMessageHandler_Create_Success(t *testing.T) {
-	mock := &mockMessageHandler{}
-	h := NewMessageHandler(mock)
+	mockMsg := &mockMessageHandler{}
+	mockRoomMembers := &mockRoomMembersHandler{}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
 
 	body := `
 	{"text":"testtext","room_id":1,"user_id":1}
@@ -75,8 +76,9 @@ func TestMessageHandler_Create_Success(t *testing.T) {
 }
 
 func TestMessageHandler_Creat_BadJSON(t *testing.T) {
-	mock := &mockMessageHandler{}
-	h := NewMessageHandler(mock)
+	mockMsg := &mockMessageHandler{}
+	mockRoomMembers := &mockRoomMembersHandler{}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
 
 	body := `
 	{"text":"test dgsger reger
@@ -95,9 +97,33 @@ func TestMessageHandler_Creat_BadJSON(t *testing.T) {
 	}
 }
 
+func TestMessageHandler_Create_Forbidden(t *testing.T) {
+	mockMsg := &mockMessageHandler{}
+	mockRoomMembers := &mockRoomMembersHandler{
+		isMemberFunc: func(ctx context.Context, members *domain.RoomMembers) (bool, error) {
+			return false, nil
+		},
+	}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
+
+	body := `{"text":"texttest", "room_id":1, "user_id":1}`
+
+	req := httptest.NewRequest("POST", "roooms/{room_id}/messages", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("room_id", "1")
+
+	w := httptest.NewRecorder()
+	h.Create(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
 func TestMessageHandler_GetByRoomID_Success(t *testing.T) {
-	mock := &mockMessageHandler{}
-	h := NewMessageHandler(mock)
+	mockMsg := &mockMessageHandler{}
+	mockRoomMembers := &mockRoomMembersHandler{}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
 
 	req := httptest.NewRequest("GET", "/rooms/1/messages?limit=10&offset=0", nil)
 	req.SetPathValue("room_id", "1")
@@ -113,7 +139,7 @@ func TestMessageHandler_GetByRoomID_Success(t *testing.T) {
 }
 
 func TestMessageHandler_GetByID_Success(t *testing.T) {
-	mock := &mockMessageHandler{
+	mockMsg := &mockMessageHandler{
 		getByIDFunc: func(ctx context.Context, id int) (*domain.Message, error) {
 			return &domain.Message{
 				ID:     1,
@@ -123,7 +149,8 @@ func TestMessageHandler_GetByID_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	h := NewMessageHandler(mock)
+	mockRoomMembers := &mockRoomMembersHandler{}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
 
 	body := `
 	{"text":"testtext","room_id":1,"user_id":1}
@@ -144,8 +171,9 @@ func TestMessageHandler_GetByID_Success(t *testing.T) {
 }
 
 func TestMessageHandler_Delete_Success(t *testing.T) {
-	mock := &mockMessageHandler{}
-	h := NewMessageHandler(mock)
+	mockMsg := &mockMessageHandler{}
+	mockRoomMembers := &mockRoomMembersHandler{}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
 
 	req := httptest.NewRequest("DELETE", "/messages/1?user_id=1", nil)
 	req.SetPathValue("id", "1")
@@ -162,8 +190,9 @@ func TestMessageHandler_Delete_Success(t *testing.T) {
 }
 
 func TestMessageHandler_DeleteByRoom_Success(t *testing.T) {
-	mock := &mockMessageHandler{}
-	h := NewMessageHandler(mock)
+	mockMsg := &mockMessageHandler{}
+	mockRoomMembers := &mockRoomMembersHandler{}
+	h := NewMessageHandler(mockMsg, mockRoomMembers)
 
 	req := httptest.NewRequest("DELETE", "/rooms/1/messages?user_id=1", nil)
 	req.SetPathValue("room_id", "1")
