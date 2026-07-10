@@ -37,18 +37,6 @@ func (m *MessageHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := auth.UserIDFromContext(r.Context())
-	isMember, err := m.roomMembersSvc.IsMember(
-		r.Context(),
-		&domain.RoomMembers{RoomID: roomID, UserID: userID},
-	)
-	if err != nil {
-		writeAppError(w, err)
-		return
-	}
-	if !isMember {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
 
 	message.RoomID = roomID
 	message.UserID = userID

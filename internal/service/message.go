@@ -17,14 +17,16 @@ type MessageService interface {
 }
 
 type messageMemory struct {
-	repo     repository.MessageRepository
-	roomRepo repository.RoomRepository
+	repo            repository.MessageRepository
+	roomRepo        repository.RoomRepository
+	roomMembersRepo repository.RoomMembersRepo
 }
 
-func NewMessageMemory(repo repository.MessageRepository, roomRepo repository.RoomRepository) *messageMemory {
+func NewMessageMemory(repo repository.MessageRepository, roomRepo repository.RoomRepository, roomMembersRepo repository.RoomMembersRepo) *messageMemory {
 	return &messageMemory{
-		repo:     repo,
-		roomRepo: roomRepo,
+		repo:            repo,
+		roomRepo:        roomRepo,
+		roomMembersRepo: roomMembersRepo,
 	}
 }
 
@@ -32,6 +34,15 @@ func (m *messageMemory) Create(ctx context.Context, msg *domain.Message) error {
 	_, err := m.roomRepo.GetByID(ctx, msg.RoomID)
 	if err != nil {
 		return err
+	}
+
+	isMember, err := m.roomMembersRepo.IsMember(ctx, &domain.RoomMembers{RoomID: msg.RoomID, UserID: msg.UserID})
+	if err != nil {
+		return fmt.Errorf("service.Create check membership %w", err)
+	}
+
+	if !isMember {
+		return apperrors.ErrForbidden
 	}
 
 	if err := m.repo.Create(ctx, msg); err != nil {
