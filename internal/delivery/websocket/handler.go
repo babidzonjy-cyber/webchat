@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 	"web-chat/internal/auth"
 	"web-chat/internal/domain"
 	"web-chat/internal/hub"
@@ -60,6 +61,9 @@ func ServeWS(
 			slog.Error("websocket upgrade failed", "error", err)
 			return
 		}
+
+		conn.SetReadDeadline(time.Time{})
+		conn.SetWriteDeadline(time.Time{})
 
 		client := &hub.Client{
 			Conn:   conn,

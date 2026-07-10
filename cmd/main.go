@@ -68,7 +68,7 @@ func main() {
 
 	userService := service.NewUserMemory(userRepo)
 	roomService := service.NewRoomMemory(roomRepo)
-	messageService := service.NewMessageMemory(msgRepo, roomRepo)
+	messageService := service.NewMessageMemory(msgRepo, roomRepo, roomMembersRepo)
 	roomMembersService := service.NewRoomMembersMemory(roomMembersRepo)
 	onlineService := service.NewOnlineService(onlineRedis)
 
