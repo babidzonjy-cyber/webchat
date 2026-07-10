@@ -2,6 +2,7 @@ package hub
 
 import (
 	"log/slog"
+	"time"
 	"web-chat/internal/repository"
 
 	"github.com/gorilla/websocket"
@@ -66,13 +67,9 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			if err := h.register(client); err != nil {
-				slog.Error("redis add online", "room", client.RoomID, "user", client.UserID, "error", err)
-			}
+			h.register(client)
 		case client := <-h.Unregister:
-			if err := h.unregister(client); err != nil {
-				slog.Error("redis remove online", "room", client.RoomID, "user", client.UserID, "error", err)
-			}
+			h.unregister(client)
 		case msg := <-h.Broadcast:
 			h.broadcast(msg)
 		case req := <-h.GetCount:
@@ -125,17 +122,24 @@ func (h *Hub) GetUsersInRoom(roomID int) []int {
 	return <-req.Result
 }
 
-func (h *Hub) register(client *Client) error {
+func (h *Hub) register(client *Client) {
 	if _, exists := h.RoomClients[client.RoomID]; !exists {
 		h.RoomClients[client.RoomID] = make(map[*Client]struct{})
 	}
-
 	h.RoomClients[client.RoomID][client] = struct{}{}
 
-	return h.online.AddOnline(client.RoomID, client.UserID)
+	go func() {
+		err := retryOp(func() error {
+			return h.online.AddOnline(client.RoomID, client.UserID)
+		}, 3, 100*time.Millisecond)
+
+		if err != nil {
+			slog.Error("redis add online fail after retries", "room", client.RoomID, "user", client.UserID, "error", err)
+		}
+	}()
 }
 
-func (h *Hub) unregister(client *Client) error {
+func (h *Hub) unregister(client *Client) {
 	if _, exists := h.RoomClients[client.RoomID][client]; exists {
 		delete(h.RoomClients[client.RoomID], client)
 		close(client.Send)
@@ -144,7 +148,16 @@ func (h *Hub) unregister(client *Client) error {
 			delete(h.RoomClients, client.RoomID)
 		}
 	}
-	return h.online.RemoveOnline(client.RoomID, client.UserID)
+
+	go func() {
+		err := retryOp(func() error {
+			return h.online.RemoveOnline(client.RoomID, client.UserID)
+		}, 3, 100*time.Millisecond)
+
+		if err != nil {
+			slog.Error("redis remove online failed after retries", "room", client.RoomID, "user", client.UserID, "error", err)
+		}
+	}()
 }
 
 func (h *Hub) broadcast(msg BroadcastMsg) {
@@ -152,9 +165,7 @@ func (h *Hub) broadcast(msg BroadcastMsg) {
 		select {
 		case client.Send <- msg.Data:
 		default:
-			if err := h.unregister(client); err != nil {
-				slog.Error("redis remove online", "room", client.RoomID, "user", client.UserID, "error", err)
-			}
+			h.unregister(client)
 		}
 	}
 }
