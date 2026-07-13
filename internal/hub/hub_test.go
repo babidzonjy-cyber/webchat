@@ -283,9 +283,11 @@ func TestHub_GetUsersInRoom(t *testing.T) {
 
 func TestHub_Broadcast_FullSend(t *testing.T) {
 	h := newTestHub()
-	c := newFullSendClient(1, 1)
+	c1 := newFullSendClient(1, 1)
+	c2 := newFullSendClient(2, 1)
 
-	h.Register <- c
+	h.Register <- c1
+	h.Register <- c2
 	time.Sleep(10 * time.Millisecond)
 
 	h.Broadcast <- BroadcastMsg{
@@ -294,8 +296,8 @@ func TestHub_Broadcast_FullSend(t *testing.T) {
 	}
 
 	count := h.GetOnlineCount(1)
-	if count != 0 {
-		t.Errorf("expected 0, got %d", count)
+	if count != 1 {
+		t.Errorf("expected 1, got %d", count)
 	}
 }
 
