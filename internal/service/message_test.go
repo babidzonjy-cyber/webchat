@@ -52,7 +52,8 @@ func (m *mockMessageService) DeleteByRoom(ctx context.Context, roomID int) error
 func TestCreateMessage_Success(t *testing.T) {
 	mockMsg := &mockMessageService{}
 	mockRoom := &mockRoomService{}
-	svc := NewMessageMemory(mockMsg, mockRoom)
+	mockRoomMembers := &mockRoomMembersService{}
+	svc := NewMessageMemory(mockMsg, mockRoom, mockRoomMembers)
 
 	msg := &domain.Message{
 		Text:   "text",
@@ -86,7 +87,9 @@ func TestGetByIDMessage_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewMessageMemory(mockMsg, mockRoom)
+
+	mockRoomMembers := &mockRoomMembersService{}
+	svc := NewMessageMemory(mockMsg, mockRoom, mockRoomMembers)
 
 	msg, err := svc.GetByID(context.Background(), 1)
 	if err != nil {
@@ -109,7 +112,8 @@ func TestGetByIDMessage_Success(t *testing.T) {
 func TestGetByRoomIDMessage_Success(t *testing.T) {
 	mockMsg := &mockMessageService{}
 	mockRoom := &mockRoomService{}
-	svc := NewMessageMemory(mockMsg, mockRoom)
+	mockRoomMembers := &mockRoomMembersService{}
+	svc := NewMessageMemory(mockMsg, mockRoom, mockRoomMembers)
 
 	_, err := svc.GetByRoomID(context.Background(), 1, 10, 0)
 	if err != nil {
@@ -120,7 +124,8 @@ func TestGetByRoomIDMessage_Success(t *testing.T) {
 func TestDeleteMessage_Success(t *testing.T) {
 	mockMsg := &mockMessageService{}
 	mockRoom := &mockRoomService{}
-	svc := NewMessageMemory(mockMsg, mockRoom)
+	mockRoomMembers := &mockRoomMembersService{}
+	svc := NewMessageMemory(mockMsg, mockRoom, mockRoomMembers)
 
 	if err := svc.Delete(context.Background(), 1, 1); err != nil {
 		t.Errorf("не должно быть ошибки, а получили: %v", err)
@@ -137,7 +142,8 @@ func TestDeleteByRoomMessage_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewMessageMemory(mockMsg, mockRoom)
+	mockRoomMembers := &mockRoomMembersService{}
+	svc := NewMessageMemory(mockMsg, mockRoom, mockRoomMembers)
 
 	if err := svc.DeleteByRoom(context.Background(), 1, 1); err != nil {
 		t.Errorf("не должно быть ошибки, а получили: %v", err)
