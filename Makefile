@@ -5,20 +5,28 @@ access-rights:
 	sudo chmod -R 777 ./out/pgdata/18/docker
 	sudo chmod -R 777 ./internal/migrations
 
-webchat-run:
+webchat-run-fast:
 	@go run cmd/main.go
 
-build:
+build-server:
+	@go build -o server ./cmd/main.go
+
+webchat-run: build-server
+	@./server
+
+docker-build:
 	@docker compose build
-up:
+docker-up:
 	@docker compose up
-down:
+docker-down:
 	@docker compose down
 
 env-up:
-	@docker compose up -d webchat-postgres
+	@docker compose up -d webchat-postgres && \
+	docker compose up -d webchat-redis
 env-down:
-	@docker compose stop webchat-postgres
+	@docker compose stop webchat-postgres && \
+	docker compose stop webchat-redis
 env-cleanup:
 	@read -p "Are you sure you want to cleanup the environment? (y/n): " ans;\
 	if [ "$$ans" = "y" ]; then\

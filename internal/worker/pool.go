@@ -11,7 +11,7 @@ type Pool struct {
 
 func NewPool(workers int) *Pool {
 	p := &Pool{
-		tasks: make(chan func(), 256),
+		tasks: make(chan func(), 1024),
 	}
 
 	for range workers {

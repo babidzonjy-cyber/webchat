@@ -83,7 +83,7 @@ func main() {
 	chatHub := hub.NewHub(onlineRedis)
 	go chatHub.Run()
 
-	chatPool := worker.NewPool(5)
+	chatPool := worker.NewPool(19)
 
 	wsHandler := ws.ServeWS(chatHub, messageService, userService, chatPool, roomMembersService)
 
